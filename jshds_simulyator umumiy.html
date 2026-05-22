@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JShDS Simulyatori - FAXR MADAD KONSALT</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+    
+    <!-- Tone.js for Audio without external assets -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+            color: #1f2937;
+            overflow-x: hidden;
+        }
+
+        /* Tabs Navigation */
+        .tab-btn.active {
+            border-bottom: 4px solid #2563eb;
+            color: #2563eb;
+            font-weight: 600;
+        }
+
+        /* Flashcards */
+        .flashcard {
+            perspective: 1000px;
+            cursor: pointer;
+            height: 250px;
+        }
+        .flashcard-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            text-align: center;
+            transition: transform 0.6s cubic-bezier(0.4, 0.2, 0.2, 1);
+            transform-style: preserve-3d;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            border-radius: 1rem;
+        }
+        .flashcard.flipped .flashcard-inner {
+            transform: rotateY(180deg);
+        }
+        .flashcard-front, .flashcard-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            -webkit-backface-visibility: hidden;
+            backface-visibility: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 1rem;
+            padding: 1.5rem;
+        }
+        .flashcard-front {
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+            color: white;
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+        .flashcard-back {
+            background-color: white;
+            color: #1f2937;
+            transform: rotateY(180deg);
+            border: 2px solid #e5e7eb;
+            font-size: 1rem;
+        }
+
+        /* Wheel of Fortune */
+        #wheelCanvas {
+            transition: transform 4s cubic-bezier(0.17, 0.67, 0.12, 0.99);
+            border-radius: 50%;
+            box-shadow: 0 0 20px rgba(0,0,0,0.2);
+            background: white;
+        }
+        .wheel-pointer {
+            position: absolute;
+            top: -15px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-left: 20px solid transparent;
+            border-right: 20px solid transparent;
+            border-top: 40px solid #ef4444;
+            z-index: 10;
+            filter: drop-shadow(0 4px 3px rgba(0,0,0,0.3));
+        }
+
+        /* Confetti Canvas */
+        #confettiCanvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        /* Modal */
+        .modal-overlay {
+            background-color: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+        }
+
+        /* Animations */
+        @keyframes pulse-border {
+            0% { border-color: rgba(59, 130, 246, 0.5); }
+            50% { border-color: rgba(59, 130, 246, 1); box-shadow: 0 0 15px rgba(59, 130, 246, 0.5); }
+            100% { border-color: rgba(59, 130, 246, 0.5); }
+        }
+        .timer-active {
+            animation: pulse-border 1s infinite;
+        }
+        
+        .radio-custom:checked + label {
+            background-color: #eff6ff;
+            border-color: #3b82f6;
+        }
+        
+        .hidden-section {
+            display: none !important;
+        }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen">
+
+<header class="bg-white shadow-md z-10 relative">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+        <div class="flex items-center space-x-3">
+            <div class="bg-blue-600 text-white p-2 rounded-lg">
+                <i class="fas fa-calculator text-2xl"></i>
+            </div>
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900 leading-tight">JShDS Simulyator</h1>
+                <p class="text-xs text-blue-600 font-semibold tracking-wider uppercase">FAXR MADAD KONSALT Maktabi</p>
+            </div>
+        </div>
+        <button id="audioToggleBtn" class="bg-gray-100 p-2 rounded-full text-gray-600 hover:bg-gray-200 transition">
+            <i class="fas fa-volume-up"></i>
+        </button>
+    </div>
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex overflow-x-auto space-x-8 border-b border-gray-200 scrollbar-hide">
+            <button class="tab-btn active whitespace-nowrap py-4 px-1 border-b-4 border-transparent text-sm font-medium text-gray-500 hover:text-gray-700" data-target="infografika">Infografika</button>
+            <button class="tab-btn whitespace-nowrap py-4 px-1 border-b-4 border-transparent text-sm font-medium text-gray-500 hover:text-gray-700" data-target="fleshkarta">Fleshkartalar</button>
+            <button class="tab-btn whitespace-nowrap py-4 px-1 border-b-4 border-transparent text-sm font-medium text-gray-500 hover:text-gray-700" data-target="gildirak">Omad G'ildiragi</button>
+            <button class="tab-btn whitespace-nowrap py-4 px-1 border-b-4 border-transparent text-sm font-medium text-gray-500 hover:text-gray-700" data-target="test1">Nazariy Test</button>
+            <button class="tab-btn whitespace-nowrap py-4 px-1 border-b-4 border-transparent text-sm font-medium text-gray-500 hover:text-gray-700" data-target="test2">Tahliliy Test</button>
+            <button class="tab-btn whitespace-nowrap py-4 px-1 border-b-4 border-transparent text-sm font-medium text-gray-500 hover:text-gray-700" data-target="test3">Provodkalar Testi</button>
+        </div>
+    </div>
+</header>
+
+<main class="flex-grow max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8 relative">
+
+    <section id="infografika" class="tab-content block">
+        <h2 class="text-3xl font-bold text-center mb-8 text-gray-800">JShDS Asoslari - Infografika</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Card 1 -->
+            <div class="bg-white rounded-2xl shadow-lg p-6 border-t-4 border-blue-500">
+                <div class="flex items-center mb-4 text-blue-600">
+                    <i class="fas fa-users fa-2x mr-3"></i>
+                    <h3 class="text-xl font-bold">Soliq To'lovchilar</h3>
+                </div>
+                <ul class="space-y-3 text-sm text-gray-600">
+                    <li class="flex items-start"><i class="fas fa-check-circle text-green-500 mt-1 mr-2"></i><b>Rezidentlar:</b> O'zbekistonda 183 kundan ortiq bo'lganlar (12%). Barcha daromaddan.</li>
+                    <li class="flex items-start"><i class="fas fa-check-circle text-green-500 mt-1 mr-2"></i><b>Norezidentlar:</b> 183 kundan kam bo'lganlar (20%). Faqat mahalliy manbadan.</li>
+                </ul>
+            </div>
+            <!-- Card 2 -->
+            <div class="bg-white rounded-2xl shadow-lg p-6 border-t-4 border-green-500">
+                <div class="flex items-center mb-4 text-green-600">
+                    <i class="fas fa-wallet fa-2x mr-3"></i>
+                    <h3 class="text-xl font-bold">Jami Daromad Turlari</h3>
+                </div>
+                <ul class="space-y-2 text-sm text-gray-600">
+                    <li class="bg-gray-50 p-2 rounded">1. Mehnatga haq to'lash (Ish haqi)</li>
+                    <li class="bg-gray-50 p-2 rounded">2. Mulkiy daromad (Ijara, Dividend)</li>
+                    <li class="bg-gray-50 p-2 rounded">3. Moddiy naf (Bepul tovar)</li>
+                    <li class="bg-gray-50 p-2 rounded">4. Boshqa daromadlar</li>
+                </ul>
+            </div>
+            <!-- Card 3 -->
+            <div class="bg-white rounded-2xl shadow-lg p-6 border-t-4 border-purple-500">
+                <div class="flex items-center mb-4 text-purple-600">
+                    <i class="fas fa-shield-alt fa-2x mr-3"></i>
+                    <h3 class="text-xl font-bold">Muhim Imtiyozlar</h3>
+                </div>
+                <div class="text-sm text-gray-600 space-y-2">
+                    <p><i class="fas fa-graduation-cap text-purple-500 mr-2"></i>O'zi va 26 yoshgacha farzandi/turmush o'rtog'i ta'limi uchun to'lovlar.</p>
+                    <p><i class="fas fa-hospital text-purple-500 mr-2"></i>Davolanish va emlash to'lovlari (hujjatli).</p>
+                    <p><i class="fas fa-hand-holding-heart text-purple-500 mr-2"></i>ITS (Ixtiyoriy tibbiy sug'urta) xodim hisobidan.</p>
+                </div>
+            </div>
+            <!-- Card 4 -->
+            <div class="bg-white rounded-2xl shadow-lg p-6 border-t-4 border-yellow-500">
+                <div class="flex items-center mb-4 text-yellow-600">
+                    <i class="fas fa-percentage fa-2x mr-3"></i>
+                    <h3 class="text-xl font-bold">Soliq Stavkalar</h3>
+                </div>
+                <div class="grid grid-cols-2 gap-4 text-center mt-4">
+                    <div class="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                        <span class="block text-2xl font-bold text-gray-800">12%</span>
+                        <span class="text-xs text-gray-500">Asosiy ish haqi</span>
+                    </div>
+                    <div class="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                        <span class="block text-2xl font-bold text-gray-800">5%</span>
+                        <span class="text-xs text-gray-500">Dividend, foiz</span>
+                    </div>
+                    <div class="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                        <span class="block text-2xl font-bold text-gray-800">20%</span>
+                        <span class="text-xs text-gray-500">Norezident</span>
+                    </div>
+                    <div class="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                        <span class="block text-2xl font-bold text-gray-800">1%</span>
+                        <span class="text-xs text-gray-500">Maxsus hudud</span>
+                    </div>
+                </div>
+            </div>
+             <!-- Card 5 -->
+            <div class="bg-white rounded-2xl shadow-lg p-6 border-t-4 border-red-500">
+                <div class="flex items-center mb-4 text-red-600">
+                    <i class="fas fa-exclamation-triangle fa-2x mr-3"></i>
+                    <h3 class="text-xl font-bold">Xodim Daromadi Emas</h3>
+                </div>
+                <p class="text-sm text-gray-600 mb-2">Quyidagilarga soliq solinmaydi:</p>
+                <ul class="text-sm text-gray-600 list-disc pl-5">
+                    <li>Maxsus kiyim va himoya vositalari</li>
+                    <li>Xizmat safari xarajatlari (me'yorda)</li>
+                    <li>Ish joyiga qatnash transporti</li>
+                    <li>Korporativ bayram xarajatlari</li>
+                </ul>
+            </div>
+            <!-- Card 6 -->
+            <div class="bg-white rounded-2xl shadow-lg p-6 border-t-4 border-indigo-500">
+                <div class="flex items-center mb-4 text-indigo-600">
+                    <i class="fas fa-file-invoice fa-2x mr-3"></i>
+                    <h3 class="text-xl font-bold">Proaktiv Hisobot</h3>
+                </div>
+                <p class="text-sm text-gray-600">
+                    <b>2026 yildan boshlab:</b> Soliq organlari ma'lumotlarni o'zlari to'playdi va hisobotni shakllantiradi. Siz faqat tekshirasiz va tasdiqlaysiz. 5 kun ichida e'tiroz bildirilmasa avtomatik qabul qilinadi.
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <section id="fleshkarta" class="tab-content hidden-section">
+        <h2 class="text-3xl font-bold text-center mb-2 text-gray-800">O'quv Fleshkartalari</h2>
+        <p class="text-center text-gray-500 mb-8">Karta ustiga bosing va javobini ko'ring</p>
+        
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6" id="flashcardsContainer">
+            <!-- Flashcards injected via JS -->
+        </div>
+    </section>
+
+    <section id="gildirak" class="tab-content hidden-section">
+        <div class="text-center mb-6">
+            <h2 class="text-3xl font-bold text-gray-800">Omad G'ildiragi Interaktiv O'yini</h2>
+            <p class="text-gray-500 mt-2">Vaqt o'tib ketmasdan to'g'ri javobni toping!</p>
+            <div class="mt-4 flex justify-center gap-4">
+                <div class="bg-blue-100 text-blue-800 px-4 py-2 rounded-full font-bold">
+                    Savol: <span id="wheelQuestionCounter">0</span> / 20
+                </div>
+                <div class="bg-green-100 text-green-800 px-4 py-2 rounded-full font-bold">
+                    To'g'ri: <span id="wheelScoreCounter">0</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex flex-col lg:flex-row gap-8 items-center justify-center">
+            <!-- Wheel Container -->
+            <div class="relative w-80 h-80 lg:w-96 lg:h-96 flex-shrink-0">
+                <div class="wheel-pointer"></div>
+                <canvas id="wheelCanvas" width="400" height="400" class="w-full h-full"></canvas>
+                <button id="spinBtn" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-20 h-20 bg-gradient-to-r from-red-500 to-pink-500 rounded-full text-white font-bold text-lg shadow-xl hover:scale-105 transition border-4 border-white z-20">Aylantirish</button>
+            </div>
+
+            <!-- Question Panel -->
+            <div id="wheelQuestionPanel" class="w-full max-w-xl bg-white p-6 rounded-2xl shadow-xl border border-gray-100 opacity-50 pointer-events-none transition-opacity duration-300 relative overflow-hidden">
+                <div id="wheelTimer" class="absolute top-0 left-0 h-2 bg-red-500 w-full transition-all duration-1000"></div>
+                
+                <div class="flex justify-between items-center mb-4 mt-2">
+                    <span id="wheelCategoryBadge" class="px-3 py-1 bg-gray-200 text-gray-700 text-sm font-bold rounded">Toifa</span>
+                    <span id="wheelTimerText" class="text-xl font-bold text-red-600 border-2 border-red-200 rounded-lg px-3 py-1"><i class="fas fa-clock mr-1"></i> 30s</span>
+                </div>
+                
+                <h3 id="wheelQuestionText" class="text-xl font-semibold mb-6 text-gray-800 min-h-[60px]">G'ildirakni aylantiring...</h3>
+                
+                <div id="wheelOptionsContainer" class="grid grid-cols-1 gap-3">
+                    <!-- Options injected here -->
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="test1" class="tab-content hidden-section quiz-section">
+        <div class="max-w-3xl mx-auto bg-white rounded-2xl shadow-xl p-8 border-t-8 border-blue-500">
+            <h2 class="text-2xl font-bold text-gray-800 mb-2">1-Bo'lim: Nazariy Biliimlar</h2>
+            <p class="text-gray-500 mb-6 border-b pb-4">Soliq kodeksi, hujjatlar va asosiy qoidalarni sinab ko'ramiz.</p>
+            <div id="quiz1Container" class="space-y-8"></div>
+            <button id="submitQuiz1" class="mt-8 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl shadow-md transition transform hover:-translate-y-1">Testni Yakunlash</button>
+        </div>
+    </section>
+
+    <section id="test2" class="tab-content hidden-section quiz-section">
+        <div class="max-w-3xl mx-auto bg-white rounded-2xl shadow-xl p-8 border-t-8 border-purple-500">
+            <h2 class="text-2xl font-bold text-gray-800 mb-2">2-Bo'lim: Tahliliy Vaziyatlar</h2>
+            <p class="text-gray-500 mb-6 border-b pb-4">"Nima noto'g'ri?", "Qanday tuzatish kerak?" turidagi chuqur tahlil talab qiluvchi savollar.</p>
+            <div id="quiz2Container" class="space-y-8"></div>
+            <button id="submitQuiz2" class="mt-8 w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded-xl shadow-md transition transform hover:-translate-y-1">Testni Yakunlash</button>
+        </div>
+    </section>
+
+    <section id="test3" class="tab-content hidden-section quiz-section">
+        <div class="max-w-3xl mx-auto bg-white rounded-2xl shadow-xl p-8 border-t-8 border-green-500">
+            <h2 class="text-2xl font-bold text-gray-800 mb-2">3-Bo'lim: Buxgalteriya Provodkalari</h2>
+            <p class="text-gray-500 mb-6 border-b pb-4">FAXR MADAD KONSALT maktabi maxsus topshiriqlari. Hisob raqamlar bog'lanishini toping.</p>
+            <div id="quiz3Container" class="space-y-8"></div>
+            <button id="submitQuiz3" class="mt-8 w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-xl shadow-md transition transform hover:-translate-y-1">Testni Yakunlash</button>
+        </div>
+    </section>
+
+</main>
+
+<canvas id="confettiCanvas"></canvas>
+
+<!-- Message Box Modal (No alerts allowed) -->
+<div id="msgModal" class="fixed inset-0 modal-overlay hidden items-center justify-center z-50 flex">
+    <div class="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4 transform transition-transform scale-95 opacity-0 duration-300" id="msgModalContent">
+        <div class="text-center">
+            <div id="msgIcon" class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-blue-100 mb-4">
+                <i class="fas fa-info text-2xl text-blue-600"></i>
+            </div>
+            <h3 id="msgTitle" class="text-xl leading-6 font-bold text-gray-900 mb-2">Xabar</h3>
+            <div class="mt-2 text-sm text-gray-500" id="msgBody">
+                <!-- Content -->
+            </div>
+            <div class="mt-6">
+                <button id="msgCloseBtn" class="w-full inline-flex justify-center rounded-xl border border-transparent shadow-sm px-4 py-3 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 sm:text-sm focus:outline-none transition">
+                    Tushunarli
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Results Modal for Quizzes -->
+<div id="resultsModal" class="fixed inset-0 modal-overlay hidden items-center justify-center z-50 flex">
+    <div class="bg-white rounded-2xl shadow-2xl p-6 max-w-4xl w-full mx-4 max-h-[90vh] flex flex-col transform transition-transform scale-95 opacity-0 duration-300" id="resultsModalContent">
+        <div class="flex justify-between items-center border-b pb-4 mb-4">
+            <h3 class="text-2xl font-bold text-gray-900">Test Natijalari</h3>
+            <button class="text-gray-400 hover:text-gray-600 transition text-2xl font-bold resultsCloseBtn">&times;</button>
+        </div>
+        <div class="overflow-y-auto pr-2 custom-scrollbar flex-grow" id="resultsBody">
+            <!-- Results injected here -->
+        </div>
+        <div class="border-t pt-4 mt-4 flex justify-end">
+            <button class="px-6 py-2 bg-gray-200 text-gray-800 font-bold rounded-lg hover:bg-gray-300 transition resultsCloseBtn">Yopish</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // System Variables
+    let isAudioEnabled = false;
+    let synth, bgSequence;
+
+    // Helper: Show Message Modal (Replacement for alert)
+    function showMsg(title, message, type = 'info') {
+        const modal = document.getElementById('msgModal');
+        const content = document.getElementById('msgModalContent');
+        const titleEl = document.getElementById('msgTitle');
+        const bodyEl = document.getElementById('msgBody');
+        const iconEl = document.getElementById('msgIcon');
+
+        titleEl.textContent = title;
+        bodyEl.innerHTML = message;
+
+        iconEl.className = 'mx-auto flex items-center justify-center h-16 w-16 rounded-full mb-4';
+        if (type === 'success') {
+            iconEl.classList.add('bg-green-100');
+            iconEl.innerHTML = '<i class="fas fa-check text-2xl text-green-600"></i>';
+        } else if (type === 'error') {
+            iconEl.classList.add('bg-red-100');
+            iconEl.innerHTML = '<i class="fas fa-times text-2xl text-red-600"></i>';
+        } else {
+            iconEl.classList.add('bg-blue-100');
+            iconEl.innerHTML = '<i class="fas fa-info text-2xl text-blue-600"></i>';
+        }
+
+        modal.classList.remove('hidden');
+        setTimeout(() => {
+            content.classList.remove('scale-95', 'opacity-0');
+            content.classList.add('scale-100', 'opacity-100');
+        }, 10);
+    }
+
+    document.getElementById('msgCloseBtn').addEventListener('click', () => {
+        const modal = document.getElementById('msgModal');
+        const content = document.getElementById('msgModalContent');
+        content.classList.remove('scale-100', 'opacity-100');
+        content.classList.add('scale-95', 'opacity-0');
+        setTimeout(() => modal.classList.add('hidden'), 300);
+    });
+
+    // Helper: Audio Initialization (Tone.js)
+    async function initAudio() {
+        if (!isAudioEnabled) {
+            await Tone.start();
+            
+            // Background Synth
+            const bgSynth = new Tone.PolySynth(Tone.Synth, {
+                oscillator: { type: "sine" },
+                envelope: { attack: 0.1, decay: 0.2, sustain: 0.2, release: 1 }
+            }).toDestination();
+            bgSynth.volume.value = -15;
+
+            bgSequence = new Tone.Sequence((time, note) => {
+                bgSynth.triggerAttackRelease(note, 0.1, time);
+            }, ["C4", "E4", "G4", "C5", "G4", "E4"], "8n");
+            
+            Tone.Transport.bpm.value = 90;
+            Tone.Transport.start();
+            bgSequence.start(0);
+
+            // FX Synths
+            window.winSynth = new Tone.PolySynth(Tone.FMSynth).toDestination();
+            window.winSynth.volume.value = -5;
+            
+            window.loseSynth = new Tone.MembraneSynth().toDestination();
+            window.loseSynth.volume.value = 0;
+
+            window.tickSynth = new Tone.Synth({
+                oscillator: { type: "square" },
+                envelope: { attack: 0.01, decay: 0.05, sustain: 0, release: 0.01 }
+            }).toDestination();
+            window.tickSynth.volume.value = -20;
+
+            isAudioEnabled = true;
+            document.getElementById('audioToggleBtn').innerHTML = '<i class="fas fa-volume-up text-blue-600"></i>';
+        } else {
+            bgSequence.stop();
+            Tone.Transport.stop();
+            isAudioEnabled = false;
+            document.getElementById('audioToggleBtn').innerHTML = '<i class="fas fa-volume-mute"></i>';
+        }
+    }
+
+    document.getElementById('audioToggleBtn').addEventListener('click', initAudio);
+
+    function playSound(type) {
+        if (!isAudioEnabled) return;
+        const now = Tone.now();
+        if (type === 'tick') {
+            window.tickSynth.triggerAttackRelease("C6", "32n", now);
+        } else if (type === 'win') {
+            window.winSynth.triggerAttackRelease(["C5", "E5", "G5", "C6"], "4n", now);
+        } else if (type === 'lose') {
+            window.loseSynth.triggerAttackRelease("C2", "8n", now);
+        }
+    }
+
+    // Helper: Confetti
+    const canvas = document.getElementById('confettiCanvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    let particles = [];
+    
+    function createConfetti() {
+        particles = [];
+        for (let i = 0; i < 150; i++) {
+            particles.push({
+                x: canvas.width / 2,
+                y: canvas.height / 2 + 100,
+                r: Math.random() * 6 + 2,
+                dx: Math.random() * 20 - 10,
+                dy: Math.random() * -20 - 10,
+                color: `hsl(${Math.random() * 360}, 100%, 50%)`,
+                tilt: Math.floor(Math.random() * 10) - 10,
+                tiltAngleIncrement: (Math.random() * 0.07) + 0.05,
+                tiltAngle: 0
+            });
+        }
+        animateConfetti();
+    }
+
+    function animateConfetti() {
+        requestAnimationFrame(animateConfetti);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        let active = false;
+        
+        particles.forEach((p, index) => {
+            if (p.y < canvas.height) active = true;
+            p.tiltAngle += p.tiltAngleIncrement;
+            p.y += (Math.cos(p.tiltAngle) + 1 + p.r / 2) / 2;
+            p.x += Math.sin(p.tiltAngle) * 2;
+            p.dy += 0.2; // gravity
+            p.x += p.dx;
+            p.y += p.dy;
+
+            ctx.beginPath();
+            ctx.lineWidth = p.r;
+            ctx.strokeStyle = p.color;
+            ctx.moveTo(p.x + p.tilt + p.r, p.y);
+            ctx.lineTo(p.x + p.tilt, p.y + p.tilt + p.r);
+            ctx.stroke();
+        });
+        
+        if (!active) particles = [];
+    }
+
+    // Tabs Logic
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active', 'border-blue-500', 'text-blue-600'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden-section'));
+            
+            e.target.classList.add('active', 'border-blue-500', 'text-blue-600');
+            document.getElementById(e.target.dataset.target).classList.remove('hidden-section');
+        });
+    });
+
+    // Flashcards Data
+    const flashcardsData = [
+        { q: "Soliq rezidenti", a: "O'zbekistonda 183 kundan ortiq bo'lgan shaxs" },
+        { q: "Norezident stavkasi", a: "Barcha daromadlardan 20 foiz" },
+        { q: "Soliq agenti kim?", a: "Soliqni ushlab, byudjetga o'tkazuvchi" },
+        { q: "Ish haqi solig'i", a: "Asosiy stavka 12 foiz" },
+        { q: "Dividend va foiz", a: "Maxsus imtiyozli 5 foiz stavka" },
+        { q: "Ta'lim imtiyozi", a: "O'zi va oilasi o'qishi uchun to'lov" },
+        { q: "Proaktiv hisobot", a: "2026 yildan elektron tayyorlanadi" },
+        { q: "Moddiy naf", a: "Tashkilot hisobidan qilingan shaxsiy xarajat" }
+    ];
+
+    const fcContainer = document.getElementById('flashcardsContainer');
+    flashcardsData.forEach(card => {
+        const div = document.createElement('div');
+        div.className = 'flashcard';
+        div.innerHTML = `
+            <div class="flashcard-inner">
+                <div class="flashcard-front"><span>${card.q}</span></div>
+                <div class="flashcard-back"><span>${card.a}</span></div>
+            </div>
+        `;
+        div.addEventListener('click', () => div.classList.toggle('flipped'));
+        fcContainer.appendChild(div);
+    });
+
+    const wheelData = [
+        // Qonunchilik (Legislation)
+        { cat: "Qonunchilik", q: "Soliq rezidenti bo'lish davri qancha?", 
+          opts: [{t:"Yuz sakson uch kun", c:true}, {t:"Yuz sakson besh kun", c:false}, {t:"Yuz to'qson uch kun", c:false}, {t:"Yuz yigirma uch kun", c:false}] },
+        { cat: "Qonunchilik", q: "Rezidentlar uchun asosiy soliq stavkasi?", 
+          opts: [{t:"O'n ikki foiz", c:true}, {t:"O'n besh foiz", c:false}, {t:"Yigirma ikki foiz", c:false}, {t:"Qirq bir foiz", c:false}] },
+        { cat: "Qonunchilik", q: "Norezidentlar uchun asosiy soliq stavkasi?", 
+          opts: [{t:"Yigirma foiz stavka", c:true}, {t:"O'ttiz foiz stavka", c:false}, {t:"O'n ikki foiz stavka", c:false}, {t:"Qirq foiz stavka", c:false}] },
+        { cat: "Qonunchilik", q: "Dividendlar uchun qanday stavka qo'llaniladi?", 
+          opts: [{t:"Besh foiz stavka", c:true}, {t:"Yetti foiz stavka", c:false}, {t:"Sakkiz foiz stavka", c:false}, {t:"O'n ikki foiz stavka", c:false}] },
+        { cat: "Qonunchilik", q: "Imtiyozsiz moddiy yordam chegarasi qancha?", 
+          opts: [{t:"To'rt butun yigirma ikki", c:true}, {t:"Besh butun yigirma ikki", c:false}, {t:"Uch butun o'ttiz ikki", c:false}, {t:"Sakkiz butun ellik ikki", c:false}] },
+        { cat: "Qonunchilik", q: "Qaysi xarajat daromad hisoblanmaydi qonunan?", 
+          opts: [{t:"Maxsus ish kiyimi berish", c:true}, {t:"Shaxsiy uyini ta'mirlab berish", c:false}, {t:"Farzandi bog'chasini to'lab berish", c:false}, {t:"Shaxsiy qarzidan kechib yuborish", c:false}] },
+        { cat: "Qonunchilik", q: "Soliqni ushlab qolmagan agent javobgarligi?", 
+          opts: [{t:"Soliqni o'zidan to'laydi", c:true}, {t:"Faqat xodimga yuklaydi", c:false}, {t:"Umuman javobgar bo'lmaydi", c:false}, {t:"Faqatgina ogohlantirish oladi", c:false}] },
+        { cat: "Qonunchilik", q: "Yil boshidan qanday hisoblanadi qonunan?", 
+          opts: [{t:"Ortib boruvchi yakun bilan", c:true}, {t:"Kamayib boruvchi yakun bilan", c:false}, {t:"Faqat joriy oydan kelib", c:false}, {t:"O'tgan yilgi maoshdan kelib", c:false}] },
+
+        // Hujjatlar (Documents)
+        { cat: "Hujjatlar", q: "Proaktiv hisobot qachondan joriy etiladi?", 
+          opts: [{t:"Ikki ming yigirma oltinchi", c:true}, {t:"Ikki ming yigirma beshinchi", c:false}, {t:"Ikki ming yigirma to'rtinchi", c:false}, {t:"Ikki ming yigirma yettinchi", c:false}] },
+        { cat: "Hujjatlar", q: "Avtomobil hadya qilishda qanday hujjat?", 
+          opts: [{t:"Notarial tasdiqlangan shartnoma", c:true}, {t:"Oddiy og'zaki kelishuv", c:false}, {t:"Faqat korxona buyrug'i", c:false}, {t:"Kassa xarajati orderi", c:false}] },
+        { cat: "Hujjatlar", q: "Ta'lim imtiyoziga qanday hujjat kerak?", 
+          opts: [{t:"Ta'lim muassasasi shartnomasi", c:true}, {t:"Soliq idorasi ruxsatnomasi", c:false}, {t:"Soliq agenti xulosasi", c:false}, {t:"Notarial tasdiqlangan ariza", c:false}] },
+        { cat: "Hujjatlar", q: "Proaktiv hisobotni tasdiqlash muddati qancha?", 
+          opts: [{t:"Besh kun ichida", c:true}, {t:"O'n kun ichida", c:false}, {t:"Yigirma kun ichida", c:false}, {t:"O'ttiz kun ichida", c:false}] },
+        { cat: "Hujjatlar", q: "Emlash imtiyozi uchun qanday hujjat?", 
+          opts: [{t:"Shifoxona bilan tuzilgan shartnoma", c:true}, {t:"Doriqxona oddiy kassa cheki", c:false}, {t:"O'z-o'zini davolash retsepti", c:false}, {t:"Xodimning og'zaki iltimosi", c:false}] },
+        { cat: "Hujjatlar", q: "Qurilishda naqd maosh isboti nima?", 
+          opts: [{t:"To'lov qaydnomasi ro'yxati", c:true}, {t:"Yuk xati schyot-fakturasi", c:false}, {t:"Soliq organining ruxsatnomasi", c:false}, {t:"Bank to'lov topshiriqnomasi", c:false}] },
+        { cat: "Hujjatlar", q: "Ish haqi hisobotining qaysi ilovasi?", 
+          opts: [{t:"To'rtinchi ilova formasi", c:true}, {t:"Sakkizinchi ilova formasi", c:false}, {t:"Beshinchi ilova formasi", c:false}, {t:"O'ninchi ilova formasi", c:false}] },
+        { cat: "Hujjatlar", q: "Mulkiy daromad manbai tasdig'i nima?", 
+          opts: [{t:"Ijara oldi-sotdi shartnomasi", c:true}, {t:"Avans hisoboti blankasi", c:false}, {t:"Xodimning shaxsiy arizasi", c:false}, {t:"Kasaba uyushmasi qarori", c:false}] },
+
+        // Balans hisoboti (Accounts / Accounting)
+        { cat: "Balans hisoboti", q: "JShDS qaysi schetda hisobga olinadi?", 
+          opts: [{t:"Oltmish sakkiz o'n", c:true}, {t:"Oltmish yetti o'n", c:false}, {t:"Oltmish to'qqiz to'qson", c:false}, {t:"To'qson to'rt o'ttiz", c:false}] },
+        { cat: "Balans hisoboti", q: "Xodimlarga ish haqi qaysi schetda?", 
+          opts: [{t:"Oltmish yetti o'n", c:true}, {t:"Oltmish sakkiz o'n", c:false}, {t:"To'qson to'rt yigirma", c:false}, {t:"Yigirma sakkiz o'n", c:false}] },
+        { cat: "Balans hisoboti", q: "Mukofot yozilganda qaysi schet debetlanadi?", 
+          opts: [{t:"To'qson to'rt o'ttiz", c:true}, {t:"Oltmish yetti o'n", c:false}, {t:"Oltmish sakkiz o'n", c:false}, {t:"Ellik bir o'n", c:false}] },
+        { cat: "Balans hisoboti", q: "JShDS byudjetga to'langanda qaysi schet?", 
+          opts: [{t:"Ellik bir o'n", c:true}, {t:"Oltmish yetti o'n", c:false}, {t:"To'qson to'rt o'ttiz", c:false}, {t:"Oltmish to'qqiz to'qson", c:false}] },
+        { cat: "Balans hisoboti", q: "Avtomobil hadya qilinganda qoldiq narx?", 
+          opts: [{t:"To'qson ikki yigirma", c:true}, {t:"Oltmish sakkiz o'n", c:false}, {t:"Oltmish yetti o'n", c:false}, {t:"Sakkson yetti to'qson", c:false}] },
+        { cat: "Balans hisoboti", q: "Moddiy naf xarajati qayerga yoziladi?", 
+          opts: [{t:"To'qson to'rt o'ttiz", c:true}, {t:"Oltmish yetti o'n", c:false}, {t:"Oltmish sakkiz o'n", c:false}, {t:"To'qson to'qqiz o'n", c:false}] },
+        { cat: "Balans hisoboti", q: "Yil yakunidagi foyda qayerda turadi?", 
+          opts: [{t:"Sakkson yetti o'n", c:true}, {t:"Oltmish yetti o'n", c:false}, {t:"To'qson to'rt o'ttiz", c:false}, {t:"Oltmish sakkiz o'n", c:false}] },
+        { cat: "Balans hisoboti", q: "Kassa xarajatlari qaysi schetdan chiqadi?", 
+          opts: [{t:"Ellik null null", c:true}, {t:"Oltmish yetti o'n", c:false}, {t:"Oltmish sakkiz o'n", c:false}, {t:"To'qson to'rt o'ttiz", c:false}] },
+
+        // Moliyaviy tahlil (Financial analysis/logic)
+        { cat: "Moliyaviy tahlil", q: "Qaysi daromad ijtimoiy soliqdan ozod?", 
+          opts: [{t:"Moddiy naf tarzidagi daromad", c:true}, {t:"Asosiy ish haqi summasi", c:false}, {t:"Ishbay mehnat haqi summasi", c:false}, {t:"Tungi smena qo'shimcha haqi", c:false}] },
+        { cat: "Moliyaviy tahlil", q: "Nodavlat bog'cha uchun imtiyoz chegarasi?", 
+          opts: [{t:"Oyiga uch million so'mgacha", c:true}, {t:"Oyiga besh million so'mgacha", c:false}, {t:"Oyiga sakkiz million so'mgacha", c:false}, {t:"Oyiga o'n million so'mgacha", c:false}] },
+        { cat: "Moliyaviy tahlil", q: "Avtomobil tekinga berilsa soliqqa tortiladimi?", 
+          opts: [{t:"Ha moddiy naf hisoblanadi", c:true}, {t:"Yo'q mutlaqo soliq solinmaydi", c:false}, {t:"Faqat ijtimoiy soliq olinadi", c:false}, {t:"Faqat QQS undirib olinadi", c:false}] },
+        { cat: "Moliyaviy tahlil", q: "Ish beruvchi tibbiy sug'urtani o'zi to'lasa?", 
+          opts: [{t:"JShDS uchun asos bo'ladi", c:true}, {t:"Mutlaqo soliqqa tortilmaydigan daromad", c:false}, {t:"Faqat jismoniy shaxs to'laydi", c:false}, {t:"Imtiyozli daromadlar qatoriga kiradi", c:false}] },
+        { cat: "Moliyaviy tahlil", q: "Malaka oshirish kursi qanday xarajat?", 
+          opts: [{t:"Xodim uchun daromad sanalmaydi", c:true}, {t:"To'g'ridan to'g'ri moddiy naf", c:false}, {t:"Asosiy mehnat daromadi qismi", c:false}, {t:"Soliqqa tortiladigan qo'shimcha daromad", c:false}] },
+        { cat: "Moliyaviy tahlil", q: "Donorlik qon topshirgan kun ish haqi?", 
+          opts: [{t:"To'liq saqlanadi JShDS olinadi", c:true}, {t:"To'lanmaydi ammo soliq ushlanadi", c:false}, {t:"To'lanadi ammo soliq olinmaydi", c:false}, {t:"Faqat ellik foizi to'lanadi", c:false}] },
+        { cat: "Moliyaviy tahlil", q: "Noturar joy ijarasida qanday stavka minimal?", 
+          opts: [{t:"Qirq sakkiz ming so'm", c:true}, {t:"Ellik sakkiz ming so'm", c:false}, {t:"Qirq yetti ming so'm", c:false}, {t:"O'ttiz sakkiz ming so'm", c:false}] },
+        { cat: "Moliyaviy tahlil", q: "Kvartira ustav fondiga kiritilsa nima bo'ladi?", 
+          opts: [{t:"Mulkiy daromad sifatida solinadi", c:true}, {t:"Oddiy investitsiya sifatida qaraladi", c:false}, {t:"Soliq bazasidan chiqarib tashlanadi", c:false}, {t:"Hech qanday daromad hisoblanmaydi", c:false}] }
+    ];
+
+    // Shuffle options randomly
+    function shuffleOptions(options) {
+        for (let i = options.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [options[i], options[j]] = [options[j], options[i]];
+        }
+        return options;
+    }
+
+    const wheelCanvas = document.getElementById('wheelCanvas');
+    const wheelCtx = wheelCanvas.getContext('2d');
+    const categories = ["Qonunchilik", "Hujjatlar", "Balans hisoboti", "Moliyaviy tahlil"];
+    const colors = ["#3b82f6", "#10b981", "#8b5cf6", "#f59e0b"];
+    const slices = categories.length * 2; // 8 slices total
+    
+    let isSpinning = false;
+    let wheelRotation = 0;
+    let questionsPlayed = 0;
+    let score = 0;
+    let timerInterval;
+    let currentQuestionData = null;
+
+    function drawWheel() {
+        const cx = wheelCanvas.width / 2;
+        const cy = wheelCanvas.height / 2;
+        const radius = cx;
+        const arc = Math.PI * 2 / slices;
+
+        wheelCtx.clearRect(0, 0, wheelCanvas.width, wheelCanvas.height);
+
+        for (let i = 0; i < slices; i++) {
+            wheelCtx.beginPath();
+            wheelCtx.fillStyle = colors[i % colors.length];
+            wheelCtx.moveTo(cx, cy);
+            wheelCtx.arc(cx, cy, radius, i * arc, (i + 1) * arc);
+            wheelCtx.fill();
+            wheelCtx.stroke();
+            
+            // Text
+            wheelCtx.save();
+            wheelCtx.translate(cx, cy);
+            wheelCtx.rotate(i * arc + arc / 2);
+            wheelCtx.textAlign = "right";
+            wheelCtx.fillStyle = "#fff";
+            wheelCtx.font = "bold 16px Inter";
+            wheelCtx.fillText(categories[i % categories.length], radius - 20, 5);
+            wheelCtx.restore();
+        }
+        
+        // Inner circle
+        wheelCtx.beginPath();
+        wheelCtx.arc(cx, cy, 30, 0, Math.PI * 2);
+        wheelCtx.fillStyle = "#fff";
+        wheelCtx.fill();
+        wheelCtx.stroke();
+    }
+    drawWheel();
+
+    document.getElementById('spinBtn').addEventListener('click', () => {
+        if (isSpinning) return;
+        if (questionsPlayed >= 20) {
+            showMsg("O'yin Yakunlandi", `Siz 20 ta savolga javob berdingiz.<br>Natija: ${score} to'g'ri javob!`, "info");
+            questionsPlayed = 0; score = 0;
+            document.getElementById('wheelScoreCounter').innerText = score;
+            document.getElementById('wheelQuestionCounter').innerText = questionsPlayed;
+            return;
+        }
+
+        // Init audio implicitly
+        if(!isAudioEnabled) initAudio();
+
+        isSpinning = true;
+        document.getElementById('wheelQuestionPanel').classList.remove('opacity-100', 'pointer-events-auto');
+        document.getElementById('wheelQuestionPanel').classList.add('opacity-50', 'pointer-events-none');
+        clearInterval(timerInterval);
+
+        // Calculate rotation
+        const spins = Math.floor(Math.random() * 5) + 5;
+        const targetSlice = Math.floor(Math.random() * slices);
+        const arc = 360 / slices;
+        // Adjust for pointer position (top)
+        const targetDeg = (spins * 360) + (360 - (targetSlice * arc + arc / 2)) - 90;
+        
+        wheelRotation += targetDeg;
+        wheelCanvas.style.transform = `rotate(${wheelRotation}deg)`;
+
+        // Sound effect while spinning
+        let ticks = 0;
+        let tickInterval = setInterval(() => {
+            playSound('tick');
+            ticks++;
+            if(ticks > 15) clearInterval(tickInterval);
+        }, 200);
+
+        setTimeout(() => {
+            isSpinning = false;
+            clearInterval(tickInterval);
+            const category = categories[targetSlice % categories.length];
+            loadWheelQuestion(category);
+        }, 4000); // match css transition
+    });
+
+    function loadWheelQuestion(category) {
+        // Find random question in category
+        const catQuestions = wheelData.filter(q => q.cat === category);
+        currentQuestionData = catQuestions[Math.floor(Math.random() * catQuestions.length)];
+        
+        document.getElementById('wheelCategoryBadge').innerText = category;
+        // set category color
+        const badgeColorIdx = categories.indexOf(category);
+        document.getElementById('wheelCategoryBadge').style.backgroundColor = colors[badgeColorIdx];
+        document.getElementById('wheelCategoryBadge').style.color = '#fff';
+
+        document.getElementById('wheelQuestionText').innerText = currentQuestionData.q;
+        
+        const optsContainer = document.getElementById('wheelOptionsContainer');
+        optsContainer.innerHTML = '';
+        
+        const shuffledOpts = shuffleOptions([...currentQuestionData.opts]);
+        
+        shuffledOpts.forEach((opt, idx) => {
+            const btn = document.createElement('button');
+            btn.className = "w-full text-left p-3 border-2 border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition font-medium text-gray-700 bg-white shadow-sm";
+            btn.innerText = opt.t;
+            btn.onclick = () => handleWheelAnswer(opt.c, btn);
+            optsContainer.appendChild(btn);
+        });
+
+        questionsPlayed++;
+        document.getElementById('wheelQuestionCounter').innerText = questionsPlayed;
+        
+        document.getElementById('wheelQuestionPanel').classList.remove('opacity-50', 'pointer-events-none');
+        document.getElementById('wheelQuestionPanel').classList.add('opacity-100', 'pointer-events-auto');
+        
+        startTimer(30); // 30 seconds
+    }
+
+    function startTimer(seconds) {
+        const timerEl = document.getElementById('wheelTimer');
+        const timerText = document.getElementById('wheelTimerText');
+        timerEl.style.width = '100%';
+        timerEl.classList.remove('bg-red-500');
+        timerEl.classList.add('bg-green-500');
+        document.getElementById('wheelQuestionPanel').classList.add('timer-active');
+        
+        let timeLeft = seconds;
+        timerText.innerHTML = `<i class="fas fa-clock mr-1"></i> ${timeLeft}s`;
+        
+        timerInterval = setInterval(() => {
+            timeLeft--;
+            timerText.innerHTML = `<i class="fas fa-clock mr-1"></i> ${timeLeft}s`;
+            const pct = (timeLeft / seconds) * 100;
+            timerEl.style.width = `${pct}%`;
+            
+            if (timeLeft <= 10) {
+                timerEl.classList.remove('bg-green-500');
+                timerEl.classList.add('bg-red-500');
+            }
+            
+            if (timeLeft <= 0) {
+                clearInterval(timerInterval);
+                handleWheelAnswer(false, null, true);
+            }
+        }, 1000);
+    }
+
+    function handleWheelAnswer(isCorrect, btnElement, isTimeOut = false) {
+        clearInterval(timerInterval);
+        document.getElementById('wheelQuestionPanel').classList.remove('timer-active');
+        
+        // Disable all buttons
+        const btns = document.getElementById('wheelOptionsContainer').querySelectorAll('button');
+        btns.forEach(b => {
+            b.disabled = true;
+            b.classList.remove('hover:border-blue-500', 'hover:bg-blue-50');
+            // Highlight correct one
+            if (currentQuestionData.opts.find(o => o.t === b.innerText).c) {
+                b.classList.add('border-green-500', 'bg-green-100', 'text-green-800');
+            }
+        });
+
+        if (isCorrect) {
+            score++;
+            document.getElementById('wheelScoreCounter').innerText = score;
+            if(btnElement) btnElement.classList.add('border-green-500', 'bg-green-100');
+            playSound('win');
+            createConfetti();
+        } else {
+            if(btnElement) btnElement.classList.add('border-red-500', 'bg-red-100', 'text-red-800');
+            playSound('lose');
+        }
+    }
+
+
+    // Shared Quiz Engine
+    function renderQuiz(containerId, data) {
+        const container = document.getElementById(containerId);
+        container.innerHTML = '';
+        
+        data.forEach((q, idx) => {
+            const qDiv = document.createElement('div');
+            qDiv.className = 'bg-gray-50 p-6 rounded-xl border border-gray-200';
+            
+            const qText = document.createElement('h4');
+            qText.className = 'text-lg font-bold text-gray-800 mb-4';
+            qText.innerText = `${idx + 1}. ${q.q}`;
+            qDiv.appendChild(qText);
+            
+            const optsDiv = document.createElement('div');
+            optsDiv.className = 'space-y-3';
+            
+            const shuffled = shuffleOptions([...q.opts]);
+            
+            shuffled.forEach((opt, optIdx) => {
+                const optWrap = document.createElement('div');
+                optWrap.className = 'relative flex items-center';
+                
+                const radioId = `${containerId}_q${idx}_opt${optIdx}`;
+                
+                const radio = document.createElement('input');
+                radio.type = 'radio';
+                radio.name = `${containerId}_q${idx}`;
+                radio.id = radioId;
+                radio.value = opt.t;
+                radio.dataset.correct = opt.c;
+                radio.className = 'peer sr-only radio-custom';
+                
+                const label = document.createElement('label');
+                label.htmlFor = radioId;
+                label.className = 'w-full px-4 py-3 border-2 border-gray-200 rounded-lg cursor-pointer hover:bg-gray-100 peer-checked:bg-blue-50 peer-checked:border-blue-500 peer-checked:text-blue-700 transition font-medium text-gray-700 shadow-sm';
+                label.innerText = opt.t;
+                
+                optWrap.appendChild(radio);
+                optWrap.appendChild(label);
+                optsDiv.appendChild(optWrap);
+            });
+            
+            qDiv.appendChild(optsDiv);
+            container.appendChild(qDiv);
+        });
+    }
+
+    function evaluateQuiz(containerId, data) {
+        let correctCount = 0;
+        let htmlResults = '';
+
+        data.forEach((q, idx) => {
+            const selected = document.querySelector(`input[name="${containerId}_q${idx}"]:checked`);
+            
+            htmlResults += `<div class="mb-4 p-4 rounded-lg border ${selected && selected.dataset.correct === 'true' ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}">`;
+            htmlResults += `<p class="font-bold mb-2">${idx + 1}. ${q.q}</p>`;
+            
+            const correctOpt = q.opts.find(o => o.c).t;
+            
+            if (selected) {
+                if (selected.dataset.correct === 'true') {
+                    correctCount++;
+                    htmlResults += `<p class="text-green-700"><i class="fas fa-check-circle mr-2"></i>To'g'ri javob: ${correctOpt}</p>`;
+                } else {
+                    htmlResults += `<p class="text-red-700 mb-1"><i class="fas fa-times-circle mr-2"></i>Xato tanlov: ${selected.value} <span class="text-xs ml-2 text-gray-500">(Bu amaliyotdagi xato atama)</span></p>`;
+                    htmlResults += `<p class="text-green-700 font-semibold"><i class="fas fa-arrow-right mr-2"></i>Aslida: ${correctOpt}</p>`;
+                }
+            } else {
+                htmlResults += `<p class="text-yellow-600 mb-1"><i class="fas fa-exclamation-triangle mr-2"></i>Javob belgilanmagan</p>`;
+                htmlResults += `<p class="text-green-700 font-semibold"><i class="fas fa-arrow-right mr-2"></i>Aslida: ${correctOpt}</p>`;
+            }
+            htmlResults += `</div>`;
+        });
+
+        const modal = document.getElementById('resultsModal');
+        const content = document.getElementById('resultsModalContent');
+        const body = document.getElementById('resultsBody');
+
+        body.innerHTML = `
+            <div class="text-center mb-6">
+                <div class="text-4xl font-black ${correctCount > data.length / 2 ? 'text-green-600' : 'text-red-600'}">${correctCount} / ${data.length}</div>
+                <p class="text-gray-500 mt-2">To'g'ri javoblar soni</p>
+            </div>
+            ${htmlResults}
+        `;
+
+        modal.classList.remove('hidden');
+        setTimeout(() => {
+            content.classList.remove('scale-95', 'opacity-0');
+            content.classList.add('scale-100', 'opacity-100');
+        }, 10);
+    }
+
+    document.querySelectorAll('.resultsCloseBtn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const modal = document.getElementById('resultsModal');
+            const content = document.getElementById('resultsModalContent');
+            content.classList.remove('scale-100', 'opacity-100');
+            content.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => modal.classList.add('hidden'), 300);
+        });
+    });
+
+
+    const test1Data = [
+        { q: "Soliq ob'yekti nima?", opts: [{t:"Jismoniy shaxs jami daromadi", c:true}, {t:"Tashkilotning yillik sof foydasi", c:false}, {t:"Davlatning asosiy soliq aylanmasi", c:false}, {t:"Muassisning xususiy kapital jamg'armasi", c:false}] },
+        { q: "Daromad guruhlari nechta?", opts: [{t:"To'rtta asosiy guruhdan iborat", c:true}, {t:"Uchta asosiy guruhdan iborat", c:false}, {t:"Besh turdagi faoliyat daromadi", c:false}, {t:"Ikkita asosiy mehnat daromadi", c:false}] },
+        { q: "Alimentlarga soliq solinadimi?", opts: [{t:"Mutlaqo JShDS dan ozod", c:true}, {t:"Faqat ijtimoiy soliq tortiladi", c:false}, {t:"Asosiy stavkada soliq olinadi", c:false}, {t:"Moddiy naf sifatida tortiladi", c:false}] },
+        { q: "Soliq agenti deb kimga aytiladi?", opts: [{t:"Daromad to'lab soliq ushlovchiga", c:true}, {t:"Mahalliy davlat soliq inspektoriga", c:false}, {t:"Bosh byudjet nazorat qiluvchisiga", c:false}, {t:"Mustaqil moliyaviy audit tashkilotiga", c:false}] },
+        { q: "Daromad olingan sana qanday?", opts: [{t:"Soliq maqsadlarida tan olingan kun", c:true}, {t:"Pul bankka haqiqatda tushgani", c:false}, {t:"Smeta tasdiqlangan moliyaviy davr", c:false}, {t:"Xodim ro'yxatga olingan kun", c:false}] },
+        { q: "Rezident mezonini toping.", opts: [{t:"Yuz sakson uch kun O'zbekistonda", c:true}, {t:"Yuz to'qson kun shartnoma asosida", c:false}, {t:"Ellik ish kuni korxona ichida", c:false}, {t:"To'qson kun xizmat safari mobaynida", c:false}] },
+        { q: "Mulkiy daromadga nima kirmaydi?", opts: [{t:"Ish haqi va yillik mukofot", c:true}, {t:"Kvartira ijarasidan olingan foyda", c:false}, {t:"Aksiyalar bo'yicha yillik dividend", c:false}, {t:"Avtomobilni sotishdan olingan summa", c:false}] },
+        { q: "Soliq stavkasi qanday qo'llaniladi?", opts: [{t:"Yil boshidan ortib boruvchi", c:true}, {t:"Faqat bitta yopiq oyga", c:false}, {t:"Oldingi soliq davri asosida", c:false}, {t:"Har chorak alohida hisobot bilan", c:false}] },
+        { q: "Maxsus kiyim soliqqa tortiladimi?", opts: [{t:"Soliq solinmaydigan ish beruvchi xarajati", c:true}, {t:"Moddiy naf sifatida JShDS olinadi", c:false}, {t:"Ustama mehnat daromadi hisoblanib", c:false}, {t:"Faqat amortizatsiya ajratmasi olinadi", c:false}] },
+        { q: "Donorlik ish haqi holati?", opts: [{t:"Saqlanadi va JShDS undiriladi", c:true}, {t:"Umuman soliq solinmasdan beriladi", c:false}, {t:"Ijtimoiy soliqqa tortilmasdan olinadi", c:false}, {t:"Hech qanday ish haqi to'lanmaydi", c:false}] }
+    ];
+
+    const test2Data = [
+        { q: "Quyidagi fikrlarning qaysi biri to'g'ri emas?", opts: [{t:"Moddiy nafga ijtimoiy soliq olinadi", c:true}, {t:"Norezident stavkasi yigirma foiz", c:false}, {t:"Kompensatsiya ba'zan me'yordan oshadi", c:false}, {t:"Emlash xarajati shartnoma bilan soliqsiz", c:false}] },
+        { q: "Vaziyatda nima noto'g'ri: Buxgalter ta'lim to'lovidan soliq ushladi.", opts: [{t:"O'zbekiston ta'limi bo'lsa imtiyozli", c:true}, {t:"To'lov faqat dividend hisobidan", c:false}, {t:"Faqat ijtimoiy fonddan o'tkaziladi", c:false}, {t:"Xarajat ustav kapitalidan qoplanadi", c:false}] },
+        { q: "Nima yetishmayapti: Shifoxona to'lovi soliqsiz bo'lishi uchun?", opts: [{t:"Tasdiqlovchi hujjatlar bo'lishi shart", c:true}, {t:"Xodimning xizmat safari guvohnomasi", c:false}, {t:"Kredit majburiyatini bekor qilish", c:false}, {t:"Kassa xarajati schyotlari o'tkazmasi", c:false}] },
+        { q: "Qanday tuzatsak bo'ladi: Avtomobil hadya qilindi, lekin soliq hisoblanmadi.", opts: [{t:"Moddiy naf sifatida soliq hisoblash", c:true}, {t:"Asosiy vosita tannarxiga qo'shish", c:false}, {t:"Boshqa daromadlarni chegirib tashlash", c:false}, {t:"Mehnat xarajati schyotiga yozish", c:false}] },
+        { q: "Qaysi xolat qonunchilikka zid?", opts: [{t:"Naqd pul berib JShDS to'lamaslik", c:true}, {t:"Ish haqi kartaga o'tkazilishi", c:false}, {t:"Ijaradan daromad solig'i ushlanishi", c:false}, {t:"Moddiy yordamdan daromad olinishi", c:false}] },
+        { q: "Vaziyat: Qurilishda yollanmaga cheksiz naqd to'landi. Nima noto'g'ri?", opts: [{t:"Mehnat fondi o'n foizi chegarasi", c:true}, {t:"Qo'shilgan qiymat solig'i ushlanmagani", c:false}, {t:"Moliyaviy jarima ajratmasi kiritilmagani", c:false}, {t:"Litsenziya muddati o'tib ketganligi", c:false}] },
+        { q: "Quyidagilardan qaysi biri asossiz amal?", opts: [{t:"ITS korxona to'lab soliq ushlamasligi", c:true}, {t:"Ta'til pulidan barcha soliq olinishi", c:false}, {t:"Mukofot puli ish haqiga qo'shilishi", c:false}, {t:"Soliq bazasidan imtiyoz chegirilishi", c:false}] },
+        { q: "Qaysi xatolik ko'p kuzatiladi?", opts: [{t:"Imtiyozni yil boshidan hisoblamaslik", c:true}, {t:"Bank aylanmasini to'g'ri yuritmaslik", c:false}, {t:"Oylik amortizatsiya normasini buzish", c:false}, {t:"Tannarx kalkulyatsiyasida xatoga yo'l", c:false}] },
+        { q: "JShDSni o'z vaqtida o'tkazmaslik oqibati?", opts: [{t:"Soliq idorasi penya hisoblab yozadi", c:true}, {t:"Faqat xodim maoshi kamayib ketadi", c:false}, {t:"Kreditor qarzdorlik avtomatik yopiladi", c:false}, {t:"Ijtimoiy soliq bazasi o'zgaradi", c:false}] },
+        { q: "Nimani o'zgartirish kerak: Proaktiv hisobotda xato ma'lumot kelsa?", opts: [{t:"Besh kun ichida tuzatish kiritish", c:true}, {t:"Bir oy o'tib qayta topshirish", c:false}, {t:"Umuman e'tiborsiz qoldirib yuborish", c:false}, {t:"Bosh buxgalterni darhol ishdan bo'shatish", c:false}] }
+    ];
+
+    const test3Data = [
+        { q: "FAXR MADAD KONSALT: Ish haqi hisoblanganda?", opts: [{t:"Dt 6710 Kt 9430 yoziladi", c:true}, {t:"Dt 5110 Kt 6710 yoziladi", c:false}, {t:"Dt 6810 Kt 9430 yoziladi", c:false}, {t:"Dt 9430 Kt 1030 yoziladi", c:false}] },
+        { q: "FAXR MADAD KONSALT: JShDS ushlab qolinganida?", opts: [{t:"Dt 9430 Kt 6810 yoziladi", c:true}, {t:"Dt 6710 Kt 6810 yoziladi", c:false}, {t:"Dt 6810 Kt 5110 yoziladi", c:false}, {t:"Dt 1030 Kt 6990 yoziladi", c:false}] },
+        { q: "FAXR MADAD KONSALT: Soliq byudjetga to'langanda?", opts: [{t:"Dt 6810 Kt 1030 yoziladi", c:true}, {t:"Dt 9430 Kt 6810 yoziladi", c:false}, {t:"Dt 6710 Kt 1030 yoziladi", c:false}, {t:"Dt 5110 Kt 6810 yoziladi", c:false}] },
+        { q: "FAXR MADAD KONSALT: Xodimga sof ish haqi berilganda?", opts: [{t:"Dt 9430 Kt 1030 yoziladi", c:true}, {t:"Dt 6810 Kt 1030 yoziladi", c:false}, {t:"Dt 6710 Kt 5110 yoziladi", c:false}, {t:"Dt 1030 Kt 9430 yoziladi", c:false}] },
+        { q: "FAXR MADAD KONSALT: Avtomobil hisobdan chiqarilganda?", opts: [{t:"Dt 8790 Kt 9100 yoziladi", c:true}, {t:"Dt 9220 Kt 8790 yoziladi", c:false}, {t:"Dt 9430 Kt 6990 yoziladi", c:false}, {t:"Dt 1030 Kt 9100 yoziladi", c:false}] },
+        { q: "FAXR MADAD KONSALT: Avto amortizatsiyasi yopilganda?", opts: [{t:"Dt 9220 Kt 8790 yoziladi", c:true}, {t:"Dt 8790 Kt 9100 yoziladi", c:false}, {t:"Dt 9430 Kt 6810 yoziladi", c:false}, {t:"Dt 6990 Kt 9220 yoziladi", c:false}] },
+        { q: "FAXR MADAD KONSALT: Hadya zarariga soliq hisoblanganda?", opts: [{t:"Dt 9430 Kt 6810 yoziladi", c:true}, {t:"Dt 6810 Kt 9430 yoziladi", c:false}, {t:"Dt 6710 Kt 6810 yoziladi", c:false}, {t:"Dt 6990 Kt 1030 yoziladi", c:false}] },
+        { q: "FAXR MADAD KONSALT: Xodimga qarz foizsiz kechilsa qaysi schyot debetlanadi (moddiy naf)?", opts: [{t:"To'qson to'rt o'ttiz xarajat schyoti", c:true}, {t:"Oltmish sakkiz o'n soliq schyoti", c:false}, {t:"Ellik bir o'n kassa schyoti", c:false}, {t:"Sakson yetti to'qson ustav kapitali", c:false}] },
+        { q: "FAXR MADAD KONSALT: Bankdan naqd pul olinganda?", opts: [{t:"Dt 5010 Kt 5110 yoziladi", c:true}, {t:"Dt 1030 Kt 6710 yoziladi", c:false}, {t:"Dt 6710 Kt 5110 yoziladi", c:false}, {t:"Dt 6810 Kt 5010 yoziladi", c:false}] },
+        { q: "FAXR MADAD KONSALT: Moddiy yordam hisoblanganda?", opts: [{t:"Dt 9430 Kt 6710 yoziladi", c:true}, {t:"Dt 6710 Kt 6810 yoziladi", c:false}, {t:"Dt 1030 Kt 9430 yoziladi", c:false}, {t:"Dt 5110 Kt 6990 yoziladi", c:false}] }
+    ];
+
+    renderQuiz('quiz1Container', test1Data);
+    document.getElementById('submitQuiz1').addEventListener('click', () => evaluateQuiz('quiz1Container', test1Data));
+
+    renderQuiz('quiz2Container', test2Data);
+    document.getElementById('submitQuiz2').addEventListener('click', () => evaluateQuiz('quiz2Container', test2Data));
+
+    renderQuiz('quiz3Container', test3Data);
+    document.getElementById('submitQuiz3').addEventListener('click', () => evaluateQuiz('quiz3Container', test3Data));
+
+</script>
+</body>
+</html>
